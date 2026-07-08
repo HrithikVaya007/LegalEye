@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+ENV/
+env/
+.env
+.env.*
+*.log
+uploads/
+qdrant_local/
+.git
+.gitignore

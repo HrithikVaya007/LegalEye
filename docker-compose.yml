@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  # 1. Frontend Client Container
+  client:
+    build:
+      context: ./client
+      args:
+        - VITE_API_URL=http://localhost:8001/api/v1
+        - VITE_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    depends_on:
+      - server
+
+  # 2. Backend API Container
+  server:
+    build:
+      context: ./server
+    ports:
+      - "8001:8001"
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - DATABASE_NAME=legaleye
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=60
+      - PORT=8001
+      - QDRANT_URL=http://qdrant:6333
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+    volumes:
+      - uploads_volume:/workspace/uploads
+    depends_on:
+      - qdrant
+    restart: unless-stopped
+
+  # 3. Vector Database Container
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_volume:/qdrant/storage
+    restart: unless-stopped
+
+volumes:
+  uploads_volume:
+  qdrant_volume:

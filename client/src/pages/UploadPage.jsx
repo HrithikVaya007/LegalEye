@@ -15,13 +15,13 @@ import { Button } from '../components/ui/Button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { cn } from '../utils/cn';
 import { useAuth } from '../context/AuthContext';
+import { API_URL } from '../config';
 
 
 const UploadPage = () => {
   const [files, setFiles] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const { user } = useAuth();
-  const API_URL = 'http://localhost:8001/api/v1'; // Standard API URL
 
 
   const onDragOver = useCallback((e) => {

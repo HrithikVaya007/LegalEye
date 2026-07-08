@@ -22,6 +22,7 @@ import { Card } from '../components/ui/Card';
 import { cn } from '../utils/cn';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { API_URL } from '../config';
 
 const StatusBadge = ({ status }) => {
   const variants = {
@@ -44,7 +45,6 @@ const LibraryPage = () => {
   
   const { user } = useAuth();
   const navigate = useNavigate();
-  const API_URL = 'http://localhost:8001/api/v1';
 
   const fetchDocuments = async () => {
     setLoading(true);

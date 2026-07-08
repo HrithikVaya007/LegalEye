@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import { API_URL } from '../config';
 import { 
   Send, 
   Paperclip, 
@@ -125,7 +126,6 @@ const ChatPage = () => {
   }, [messages, isStreaming]);
 
   const { user } = useAuth();
-  const API_URL = 'http://localhost:8001/api/v1';
 
   const handleSend = async () => {
     if (!input.trim()) return;

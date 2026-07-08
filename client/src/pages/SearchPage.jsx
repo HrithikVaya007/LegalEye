@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
+import { API_URL } from '../config';
 import { 
   Search as SearchIcon, 
   Filter, 
@@ -67,7 +68,6 @@ const SearchPage = () => {
   const [results, setResults] = useState([]);
 
   const { user } = useAuth();
-  const API_URL = 'http://localhost:8001/api/v1';
 
   const handleSearch = async (e) => {
     e.preventDefault();

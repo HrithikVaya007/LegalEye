@@ -13,7 +13,7 @@ import SettingsPage from './pages/SettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
 import LandingPage from './pages/LandingPage';
 
-const GOOGLE_CLIENT_ID = '482308799962-f9aon8484ggsmim47d6u2gi320nqabdo.apps.googleusercontent.com';
+import { GOOGLE_CLIENT_ID } from './config';
 
 function App() {
   return (

@@ -60,7 +60,7 @@ async def upload_document(
     chunks = extract_text(file_path)
 
     for chunk in chunks:
-        embedding = generate_embedding(chunk["text"])
+        embedding = generate_embedding(chunk["text"], prefix="passage")
         chunk["embedding"] = embedding
         chunk["document_name"] = file.filename
 

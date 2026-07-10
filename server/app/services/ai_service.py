@@ -16,14 +16,18 @@ client = Groq(
 # ---------------------------------------------------------------------------
 # Embedding model
 # ---------------------------------------------------------------------------
-# paraphrase-multilingual-MiniLM-L12-v2:
-#   • Supports 50+ languages including Hindi, Gujarati, Arabic, Chinese,
-#     Japanese, Korean, French, Spanish, Portuguese, German, Russian, etc.
+# intfloat/multilingual-e5-small:
+#   • State-of-the-art multilingual embeddings (100+ languages) based on
+#     Microsoft's E5 training recipe.
 #   • Outputs 384-dimensional vectors — matches the existing Qdrant collection.
-#   • A single model handles all languages; no per-language switching needed.
+#     No collection recreation is required when switching from
+#     paraphrase-multilingual-MiniLM-L12-v2.
+#   • IMPORTANT: this model requires task-specific prefixes:
+#       - "query: "   for query/search-time text
+#       - "passage: " for document chunks at index time
 # ---------------------------------------------------------------------------
 model = SentenceTransformer(
-    "paraphrase-multilingual-MiniLM-L12-v2"
+    "intfloat/multilingual-e5-small"
 )
 
 # ---------------------------------------------------------------------------
@@ -44,12 +48,18 @@ _SYSTEM_MESSAGE = (
 )
 
 
-def generate_embedding(text: str) -> List[float]:
+def generate_embedding(text: str, prefix: str = "query") -> List[float]:
     """
     Generate a 384-dimensional multilingual embedding for *text*.
-    Works for any language / script supported by the model.
+
+    intfloat/multilingual-e5-small requires task-specific prefixes:
+      • prefix="query"   (default) — for user questions / search queries
+      • prefix="passage"           — for document chunks at index time
+
+    Works for any language / script supported by the model (100+ languages).
     """
-    embedding = model.encode(text)
+    prefixed_text = f"{prefix}: {text}"
+    embedding = model.encode(prefixed_text)
     return embedding.tolist()
 
 

@@ -17,7 +17,8 @@ async def search_document(
     current_user: dict = Depends(get_current_user)
 ):
     query_embedding = generate_embedding(
-        data.query
+        data.query,
+        prefix="query"
     )
 
     results = semantic_search(

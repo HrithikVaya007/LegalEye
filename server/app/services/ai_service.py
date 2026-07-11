@@ -1,33 +1,31 @@
 import logging
 from typing import List
-from app.core.config import settings
+
+import numpy as np
 from groq import Groq
+from huggingface_hub import InferenceClient
+
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# pyrefly: ignore [missing-import]
-from sentence_transformers import SentenceTransformer
-
-client = Groq(
-    api_key=settings.GROQ_API_KEY
-)
+# ---------------------------------------------------------------------------
+# Groq LLM client (for chat completions)
+# ---------------------------------------------------------------------------
+groq_client = Groq(api_key=settings.GROQ_API_KEY)
 
 # ---------------------------------------------------------------------------
-# Embedding model
+# HuggingFace Inference API client (for embeddings)
 # ---------------------------------------------------------------------------
-# intfloat/multilingual-e5-small:
-#   • State-of-the-art multilingual embeddings (100+ languages) based on
-#     Microsoft's E5 training recipe.
-#   • Outputs 384-dimensional vectors — matches the existing Qdrant collection.
-#     No collection recreation is required when switching from
-#     paraphrase-multilingual-MiniLM-L12-v2.
-#   • IMPORTANT: this model requires task-specific prefixes:
-#       - "query: "   for query/search-time text
-#       - "passage: " for document chunks at index time
+# Using the cloud Inference API instead of a local SentenceTransformer model.
+# This eliminates the ~500MB RAM + PyTorch requirement on Railway.
+# The model intfloat/multilingual-e5-small runs on HuggingFace's servers.
 # ---------------------------------------------------------------------------
-model = SentenceTransformer(
-    "intfloat/multilingual-e5-small"
+HF_EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
+
+hf_client = InferenceClient(
+    api_key=settings.HUGGINGFACE_API_TOKEN or None
 )
 
 # ---------------------------------------------------------------------------
@@ -48,30 +46,47 @@ _SYSTEM_MESSAGE = (
 )
 
 
+def _normalize_embedding(raw) -> List[float]:
+    """
+    Normalize the HuggingFace Inference API response to a flat list of floats.
+    The API can return:
+      - np.ndarray of shape (384,)       ← single text
+      - np.ndarray of shape (1, 384)     ← single text wrapped in batch dim
+      - list of floats                   ← single text as plain list
+    """
+    arr = np.array(raw, dtype=np.float32)
+    if arr.ndim == 2:
+        arr = arr[0]   # unwrap batch dimension
+    return arr.tolist()
+
+
 def generate_embedding(text: str, prefix: str = "query") -> List[float]:
     """
-    Generate a 384-dimensional multilingual embedding for *text*.
+    Generate a 384-dimensional multilingual embedding for *text* via the
+    HuggingFace Inference API.
 
     intfloat/multilingual-e5-small requires task-specific prefixes:
       • prefix="query"   (default) — for user questions / search queries
       • prefix="passage"           — for document chunks at index time
-
-    Works for any language / script supported by the model (100+ languages).
     """
     prefixed_text = f"{prefix}: {text}"
-    embedding = model.encode(prefixed_text)
-    return embedding.tolist()
+    raw = hf_client.feature_extraction(prefixed_text, model=HF_EMBEDDING_MODEL)
+    return _normalize_embedding(raw)
 
 
 def generate_embeddings_batch(texts: List[str], prefix: str = "query") -> List[List[float]]:
     """
-    Batch-encode a list of texts in a single model.encode() call.
-    Much faster than calling generate_embedding() in a loop — the model
-    processes all texts in parallel on the available hardware.
+    Batch-encode a list of texts via a single HuggingFace Inference API call.
+    Returns a list of 384-dimensional embedding vectors.
     """
     prefixed = [f"{prefix}: {t}" for t in texts]
-    embeddings = model.encode(prefixed, batch_size=32, show_progress_bar=False)
-    return [e.tolist() for e in embeddings]
+    raw = hf_client.feature_extraction(prefixed, model=HF_EMBEDDING_MODEL)
+    arr = np.array(raw, dtype=np.float32)
+    # arr shape: (n_texts, 384)
+    if arr.ndim == 1:
+        # Single item returned as flat array — wrap it
+        arr = arr.reshape(1, -1)
+    return arr.tolist()
 
 
 def generate_response(prompt: str) -> str:
@@ -81,7 +96,7 @@ def generate_response(prompt: str) -> str:
     A persistent system message ensures the model stays in multilingual mode
     regardless of the language detected in the prompt.
     """
-    response = client.chat.completions.create(
+    response = groq_client.chat.completions.create(
         model=_LLM_MODEL,
         messages=[
             {

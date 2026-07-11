@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     QDRANT_API_KEY: str = ""
     GROQ_API_KEY: str
     GOOGLE_CLIENT_ID: str = "482308799962-f9aon8484ggsmim47d6u2gi320nqabdo.apps.googleusercontent.com"
+    HUGGINGFACE_API_TOKEN: str = ""
 
 @lru_cache()
 def get_settings():

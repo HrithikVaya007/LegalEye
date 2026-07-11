@@ -30,6 +30,7 @@ services:
       - QDRANT_URL=http://qdrant:6333
       - GROQ_API_KEY=${GROQ_API_KEY}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - HUGGINGFACE_API_TOKEN=${HUGGINGFACE_API_TOKEN}
     volumes:
       - uploads_volume:/workspace/uploads
     depends_on:

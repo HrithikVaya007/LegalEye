@@ -1,9 +1,10 @@
 import logging
+import time
 from typing import List
 
 import numpy as np
+import requests
 from groq import Groq
-from huggingface_hub import InferenceClient
 
 from app.core.config import settings
 
@@ -16,26 +17,16 @@ logging.basicConfig(level=logging.INFO)
 groq_client = Groq(api_key=settings.GROQ_API_KEY)
 
 # ---------------------------------------------------------------------------
-# HuggingFace Inference API client (for embeddings)
-# ---------------------------------------------------------------------------
-# Using the cloud Inference API instead of a local SentenceTransformer model.
-# This eliminates the ~500MB RAM + PyTorch requirement on Railway.
-# The model intfloat/multilingual-e5-small runs on HuggingFace's servers.
+# HuggingFace Inference API Config
 # ---------------------------------------------------------------------------
 HF_EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
-
-hf_client = InferenceClient(
-    api_key=settings.HUGGINGFACE_API_TOKEN or None
-)
+HF_API_URL = f"https://api-inference.huggingface.co/models/{HF_EMBEDDING_MODEL}"
 
 # ---------------------------------------------------------------------------
 # LLM configuration
 # ---------------------------------------------------------------------------
-# llama-3.3-70b-versatile is natively multilingual and can read / reason /
-# respond in 30+ languages out of the box.
 _LLM_MODEL = "llama-3.3-70b-versatile"
 
-# A lightweight system message that primes every request for multilingual use.
 _SYSTEM_MESSAGE = (
     "You are LegalEye, an expert multilingual AI legal assistant. "
     "You can read and reason about legal documents written in any language. "
@@ -46,55 +37,101 @@ _SYSTEM_MESSAGE = (
 )
 
 
-def _normalize_embedding(raw) -> List[float]:
+def _call_hf_inference_api(payload: dict) -> list:
     """
-    Normalize the HuggingFace Inference API response to a flat list of floats.
-    The API can return:
-      - np.ndarray of shape (384,)       ← single text
-      - np.ndarray of shape (1, 384)     ← single text wrapped in batch dim
-      - list of floats                   ← single text as plain list
+    Directly query the HuggingFace Inference API via requests to bypass task-checking.
+    Includes handling and retries for model cold starts.
     """
-    arr = np.array(raw, dtype=np.float32)
-    if arr.ndim == 2:
-        arr = arr[0]   # unwrap batch dimension
-    return arr.tolist()
+    headers = {}
+    if settings.HUGGINGFACE_API_TOKEN:
+        headers["Authorization"] = f"Bearer {settings.HUGGINGFACE_API_TOKEN}"
+
+    for attempt in range(6):
+        try:
+            response = requests.post(
+                HF_API_URL,
+                headers=headers,
+                json=payload,
+                timeout=45
+            )
+            res_json = response.json()
+
+            # Handle model loading / cold start
+            if isinstance(res_json, dict) and "error" in res_json:
+                error_msg = res_json.get("error", "")
+                if "currently loading" in error_msg or "estimated_time" in res_json:
+                    wait_time = min(float(res_json.get("estimated_time", 5)), 10.0)
+                    logger.info(f"HuggingFace model is currently loading. Waiting {wait_time}s (attempt {attempt+1}/6)...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    raise ValueError(f"HuggingFace API error: {error_msg}")
+
+            if response.status_code != 200:
+                raise ValueError(f"HuggingFace API returned status {response.status_code}: {res_json}")
+
+            return res_json
+        except Exception as e:
+            if attempt == 5:
+                logger.error(f"Failed to fetch embeddings from HuggingFace after 6 attempts: {e}")
+                raise e
+            logger.warning(f"HF API request failed (attempt {attempt+1}/6): {e}")
+            time.sleep(2.0)
+
+    raise ValueError("Failed to retrieve embeddings from HuggingFace: Max retries exceeded.")
+
+
+def _flatten_to_1d(data) -> List[float]:
+    """Recursively flatten nested list structure down to a 1D list of floats."""
+    if not isinstance(data, list):
+        return [float(data)]
+    if len(data) > 0 and isinstance(data[0], list):
+        return _flatten_to_1d(data[0])
+    return [float(x) for x in data]
+
+
+def _flatten_to_2d(data, expected_count: int) -> List[List[float]]:
+    """Flatten nested list structure down to a list of lists of floats."""
+    if not isinstance(data, list):
+        raise ValueError("Invalid response format from HuggingFace API")
+
+    if expected_count == 1:
+        return [_flatten_to_1d(data)]
+
+    # If HuggingFace returns a 3D list like [[[...], [...]]], unwrap the outer dimension if it has length 1
+    if len(data) == 1 and isinstance(data[0], list) and len(data[0]) > 0 and isinstance(data[0][0], list):
+        return _flatten_to_2d(data[0], expected_count)
+
+    result = []
+    for item in data:
+        result.append(_flatten_to_1d(item))
+    return result
 
 
 def generate_embedding(text: str, prefix: str = "query") -> List[float]:
     """
     Generate a 384-dimensional multilingual embedding for *text* via the
     HuggingFace Inference API.
-
-    intfloat/multilingual-e5-small requires task-specific prefixes:
-      • prefix="query"   (default) — for user questions / search queries
-      • prefix="passage"           — for document chunks at index time
     """
     prefixed_text = f"{prefix}: {text}"
-    raw = hf_client.feature_extraction(prefixed_text, model=HF_EMBEDDING_MODEL)
-    return _normalize_embedding(raw)
+    raw = _call_hf_inference_api({"inputs": prefixed_text})
+    return _flatten_to_1d(raw)
 
 
 def generate_embeddings_batch(texts: List[str], prefix: str = "query") -> List[List[float]]:
     """
     Batch-encode a list of texts via a single HuggingFace Inference API call.
-    Returns a list of 384-dimensional embedding vectors.
     """
+    if not texts:
+        return []
     prefixed = [f"{prefix}: {t}" for t in texts]
-    raw = hf_client.feature_extraction(prefixed, model=HF_EMBEDDING_MODEL)
-    arr = np.array(raw, dtype=np.float32)
-    # arr shape: (n_texts, 384)
-    if arr.ndim == 1:
-        # Single item returned as flat array — wrap it
-        arr = arr.reshape(1, -1)
-    return arr.tolist()
+    raw = _call_hf_inference_api({"inputs": prefixed})
+    return _flatten_to_2d(raw, len(texts))
 
 
 def generate_response(prompt: str) -> str:
     """
     Send *prompt* to the LLM and return the generated text.
-
-    A persistent system message ensures the model stays in multilingual mode
-    regardless of the language detected in the prompt.
     """
     response = groq_client.chat.completions.create(
         model=_LLM_MODEL,

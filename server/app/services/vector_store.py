@@ -25,7 +25,7 @@ try:
         client = QdrantClient(
             url=_qdrant_url,
             api_key=_qdrant_api_key if _qdrant_api_key else None,
-            timeout=5.0
+            timeout=60.0
         )
         # Test connection by listing collections
         client.get_collections()

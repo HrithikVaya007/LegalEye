@@ -63,6 +63,17 @@ def generate_embedding(text: str, prefix: str = "query") -> List[float]:
     return embedding.tolist()
 
 
+def generate_embeddings_batch(texts: List[str], prefix: str = "query") -> List[List[float]]:
+    """
+    Batch-encode a list of texts in a single model.encode() call.
+    Much faster than calling generate_embedding() in a loop — the model
+    processes all texts in parallel on the available hardware.
+    """
+    prefixed = [f"{prefix}: {t}" for t in texts]
+    embeddings = model.encode(prefixed, batch_size=32, show_progress_bar=False)
+    return [e.tolist() for e in embeddings]
+
+
 def generate_response(prompt: str) -> str:
     """
     Send *prompt* to the LLM and return the generated text.

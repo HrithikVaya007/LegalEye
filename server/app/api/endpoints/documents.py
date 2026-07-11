@@ -1,3 +1,4 @@
+import asyncio
 import os
 import shutil
 from typing import List
@@ -17,7 +18,7 @@ from app.db.mongodb import get_database
 from app.core.config import settings
 from app.api.deps import get_current_user
 from app.services.document_service import extract_text
-from app.services.ai_service import generate_embedding
+from app.services.ai_service import generate_embeddings_batch
 from app.services.vector_store import (
     create_collection,
     store_chunks,
@@ -38,33 +39,36 @@ async def upload_document(
             status_code=400,
             detail="Only PDF files are allowed"
         )
-    
-    create_collection()
 
     upload_dir = "uploads"
     os.makedirs(upload_dir, exist_ok=True)
 
-    file_path = os.path.join(
-        upload_dir,
-        file.filename
-    )
+    file_path = os.path.join(upload_dir, file.filename)
 
+    # Save uploaded file to disk
     with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(
-            file.file,
-            buffer
-        )
-    
+        shutil.copyfileobj(file.file, buffer)
+
     file_size = os.path.getsize(file_path)
-    
-    chunks = extract_text(file_path)
 
-    for chunk in chunks:
-        embedding = generate_embedding(chunk["text"], prefix="passage")
-        chunk["embedding"] = embedding
-        chunk["document_name"] = file.filename
+    # Run CPU-bound text extraction off the async event loop
+    chunks = await asyncio.to_thread(extract_text, file_path)
 
-    store_chunks(chunks, user_id=current_user["_id"])
+    if chunks:
+        # Batch-encode all chunks in one model.encode() call — much faster
+        # than encoding one chunk at a time in a loop
+        texts = [chunk["text"] for chunk in chunks]
+        embeddings = await asyncio.to_thread(
+            generate_embeddings_batch, texts, "passage"
+        )
+        for chunk, embedding in zip(chunks, embeddings):
+            chunk["embedding"] = embedding
+            chunk["document_name"] = file.filename
+
+        # Run blocking Qdrant upsert off the event loop
+        await asyncio.to_thread(
+            store_chunks, chunks, str(current_user["_id"])
+        )
 
     document = {
         "filename": file.filename,

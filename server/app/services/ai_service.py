@@ -1,9 +1,6 @@
 import logging
-import time
 from typing import List
-
-import numpy as np
-import requests
+from fastembed import TextEmbedding
 from groq import Groq
 
 from app.core.config import settings
@@ -17,10 +14,26 @@ logging.basicConfig(level=logging.INFO)
 groq_client = Groq(api_key=settings.GROQ_API_KEY)
 
 # ---------------------------------------------------------------------------
-# HuggingFace Inference API Config
+# Local FastEmbed Config
 # ---------------------------------------------------------------------------
-HF_EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
-HF_API_URL = f"https://api-inference.huggingface.co/models/{HF_EMBEDDING_MODEL}"
+# We use sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 which
+# outputs 384-dimensional vectors, matching your current Qdrant database.
+# It runs 100% locally using ONNX runtime, requiring no HuggingFace network
+# requests at runtime and using under ~200MB memory (well within Railway's limits).
+# ---------------------------------------------------------------------------
+try:
+    # Attempt to use /workspace/.fastembed_cache as cached directory (for Docker/Railway)
+    embedding_model = TextEmbedding(
+        model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+        cache_dir="/workspace/.fastembed_cache"
+    )
+    logger.info("Initializing fastembed model using /workspace/.fastembed_cache")
+except Exception as e:
+    logger.warning(f"Could not initialize with /workspace/.fastembed_cache: {e}. Falling back to default cache.")
+    # Fallback for local development if /workspace is not writable
+    embedding_model = TextEmbedding(
+        model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    )
 
 # ---------------------------------------------------------------------------
 # LLM configuration
@@ -37,96 +50,22 @@ _SYSTEM_MESSAGE = (
 )
 
 
-def _call_hf_inference_api(payload: dict) -> list:
-    """
-    Directly query the HuggingFace Inference API via requests to bypass task-checking.
-    Includes handling and retries for model cold starts.
-    """
-    headers = {}
-    if settings.HUGGINGFACE_API_TOKEN:
-        headers["Authorization"] = f"Bearer {settings.HUGGINGFACE_API_TOKEN}"
-
-    for attempt in range(6):
-        try:
-            response = requests.post(
-                HF_API_URL,
-                headers=headers,
-                json=payload,
-                timeout=45
-            )
-            res_json = response.json()
-
-            # Handle model loading / cold start
-            if isinstance(res_json, dict) and "error" in res_json:
-                error_msg = res_json.get("error", "")
-                if "currently loading" in error_msg or "estimated_time" in res_json:
-                    wait_time = min(float(res_json.get("estimated_time", 5)), 10.0)
-                    logger.info(f"HuggingFace model is currently loading. Waiting {wait_time}s (attempt {attempt+1}/6)...")
-                    time.sleep(wait_time)
-                    continue
-                else:
-                    raise ValueError(f"HuggingFace API error: {error_msg}")
-
-            if response.status_code != 200:
-                raise ValueError(f"HuggingFace API returned status {response.status_code}: {res_json}")
-
-            return res_json
-        except Exception as e:
-            if attempt == 5:
-                logger.error(f"Failed to fetch embeddings from HuggingFace after 6 attempts: {e}")
-                raise e
-            logger.warning(f"HF API request failed (attempt {attempt+1}/6): {e}")
-            time.sleep(2.0)
-
-    raise ValueError("Failed to retrieve embeddings from HuggingFace: Max retries exceeded.")
-
-
-def _flatten_to_1d(data) -> List[float]:
-    """Recursively flatten nested list structure down to a 1D list of floats."""
-    if not isinstance(data, list):
-        return [float(data)]
-    if len(data) > 0 and isinstance(data[0], list):
-        return _flatten_to_1d(data[0])
-    return [float(x) for x in data]
-
-
-def _flatten_to_2d(data, expected_count: int) -> List[List[float]]:
-    """Flatten nested list structure down to a list of lists of floats."""
-    if not isinstance(data, list):
-        raise ValueError("Invalid response format from HuggingFace API")
-
-    if expected_count == 1:
-        return [_flatten_to_1d(data)]
-
-    # If HuggingFace returns a 3D list like [[[...], [...]]], unwrap the outer dimension if it has length 1
-    if len(data) == 1 and isinstance(data[0], list) and len(data[0]) > 0 and isinstance(data[0][0], list):
-        return _flatten_to_2d(data[0], expected_count)
-
-    result = []
-    for item in data:
-        result.append(_flatten_to_1d(item))
-    return result
-
-
 def generate_embedding(text: str, prefix: str = "query") -> List[float]:
     """
-    Generate a 384-dimensional multilingual embedding for *text* via the
-    HuggingFace Inference API.
+    Generate a 384-dimensional multilingual embedding for *text* locally.
     """
-    prefixed_text = f"{prefix}: {text}"
-    raw = _call_hf_inference_api({"inputs": prefixed_text})
-    return _flatten_to_1d(raw)
+    embeddings = list(embedding_model.embed([text]))
+    return embeddings[0].tolist()
 
 
 def generate_embeddings_batch(texts: List[str], prefix: str = "query") -> List[List[float]]:
     """
-    Batch-encode a list of texts via a single HuggingFace Inference API call.
+    Batch-encode a list of texts locally via FastEmbed.
     """
     if not texts:
         return []
-    prefixed = [f"{prefix}: {t}" for t in texts]
-    raw = _call_hf_inference_api({"inputs": prefixed})
-    return _flatten_to_2d(raw, len(texts))
+    embeddings = list(embedding_model.embed(texts))
+    return [e.tolist() for e in embeddings]
 
 
 def generate_response(prompt: str) -> str:

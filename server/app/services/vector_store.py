@@ -7,7 +7,8 @@ from qdrant_client.models import (
     PointStruct,
     Filter,
     FieldCondition,
-    MatchValue
+    MatchValue,
+    PayloadSchemaType
 )
 from app.core.config import settings
 
@@ -54,6 +55,17 @@ def create_collection(vector_size=384):
                     distance=Distance.COSINE
                 )
             )
+        
+        # Always ensure user_id index exists to satisfy Qdrant Cloud filtering requirements
+        try:
+            client.create_payload_index(
+                collection_name="legaleye",
+                field_name="user_id",
+                field_schema=PayloadSchemaType.KEYWORD
+            )
+            logger.info("Payload index for user_id verified/created in Qdrant.")
+        except Exception as idx_err:
+            logger.warning(f"Did not recreate user_id index (it might already exist): {idx_err}")
     except Exception as e:
         logger.error(f"Error creating collection: {e}")
         raise e

@@ -27,12 +27,7 @@ const Header = () => {
         <Button variant="ghost" size="icon" className="text-zinc-400 hover:text-white">
           <Moon size={20} />
         </Button>
-        <div className="w-px h-6 bg-white/5 mx-2" />
         <div className="flex items-center gap-3 pl-2">
-          <div className="text-right hidden sm:block">
-            <p className="text-xs font-semibold text-white">Trial Plan</p>
-            <p className="text-[10px] text-zinc-500">24 days left</p>
-          </div>
           <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-xs font-bold">
             JD
           </div>

@@ -77,10 +77,6 @@ const SettingsPage = () => {
               <Input defaultValue={user?.email || "user@example.com"} />
             </div>
 
-            <div className="space-y-2 sm:col-span-2">
-              <label className="text-xs font-semibold text-zinc-500 uppercase">Company Name</label>
-              <Input defaultValue="LegalEye Systems Inc." />
-            </div>
           </div>
           <div className="mt-6 flex justify-end">
             <Button size="sm">Save Changes</Button>

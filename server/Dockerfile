@@ -10,6 +10,11 @@ WORKDIR /workspace
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Pre-download the SentenceTransformer model at build time so it's
+# baked into the image. This prevents cold-start timeouts on Railway
+# caused by downloading ~100MB from HuggingFace on the first request.
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('intfloat/multilingual-e5-small')"
+
 # Copy source code
 COPY . .
 

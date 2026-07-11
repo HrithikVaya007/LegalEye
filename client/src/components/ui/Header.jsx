@@ -23,7 +23,6 @@ const Header = () => {
           <Bell size={20} />
           <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-primary rounded-full border-2 border-black" />
         </Button>
-        <div className="w-px h-6 bg-white/5 mx-2" />
         <Button variant="ghost" size="icon" className="text-zinc-400 hover:text-white">
           <Moon size={20} />
         </Button>

@@ -9,15 +9,25 @@ function UnfoldingPages({ animState }) {
   const page3Ref = useRef();
   const scanBeamRef = useRef();
 
-  // Create page texture canvas helper
-  const pageTextures = useMemo(() => {
-    const createTextTexture = (title, lines, hasHighlight, isScanned) => {
+  // Create page texture canvas helper exactly ONCE to prevent WebGL memory leaks
+  const { p1, p2, p3 } = useMemo(() => {
+    const createTex = () => {
       const canvas = document.createElement('canvas');
       canvas.width = 256;
       canvas.height = 384;
-      const ctx = canvas.getContext('2d');
+      return { canvas, texture: new THREE.CanvasTexture(canvas) };
+    };
+    return { p1: createTex(), p2: createTex(), p3: createTex() };
+  }, []);
 
-      // Page background (dark slate/navy paper)
+  // Update canvas contents only when animState changes, reusing the same GPU texture
+  useEffect(() => {
+    const drawContent = (target, title, lines, hasHighlight, isScanned) => {
+      const { canvas, texture } = target;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, 256, 384);
+
+      // Page background
       ctx.fillStyle = '#0b1329';
       ctx.fillRect(0, 0, 256, 384);
       ctx.strokeStyle = 'rgba(56, 189, 248, 0.15)';
@@ -53,37 +63,40 @@ function UnfoldingPages({ animState }) {
         ctx.shadowBlur = 0;
       });
 
-      const texture = new THREE.CanvasTexture(canvas);
-      return texture;
+      // Notify Three.js that the canvas changed so it re-uploads to the GPU
+      texture.needsUpdate = true;
     };
 
-    return {
-      p1: createTextTexture('CONTRACT AGREEMENT', [
-        'MEMORANDUM OF UNDERSTANDING',
-        'Effective Date: July 15, 2026',
-        'Between LegalEye Corp and Clients',
-        '>>> SCAN OBJECT: INTELLECTUAL PROPERTY',
-        'All designs, algorithms, code structures',
-        'and system designs are fully owned by...'
-      ], true, animState >= 3), // Scanned when scan starts
-      p2: createTextTexture('PAGE 2 - LIMITS', [
-        'SECTION 4. REMEDIES & FINES',
-        'In the event of disclosure of records,',
-        'liquidated damages apply instantly.',
-        '>>> SCAN OBJECT: $500,000 LIABILITY',
-        'Subject to maximum enforcement penalties',
-        'allowed by federal and state courts.'
-      ], true, animState >= 4),
-      p3: createTextTexture('PAGE 3 - JURISDICTION', [
-        'SECTION 9. GOVERNING STATUTES',
-        'This agreement is governed by the',
-        'laws and provisions of Delaware, USA.',
-        '>>> SCAN OBJECT: DELAWARE LAW',
-        'Both parties consent to personal jurisdiction',
-        'and venue in state and federal courts.'
-      ], true, animState >= 5)
-    };
-  }, [animState]);
+    drawContent(p1, 'CONTRACT AGREEMENT', [
+      'MEMORANDUM OF UNDERSTANDING',
+      'Effective Date: July 15, 2026',
+      'Between LegalEye Corp and Clients',
+      '>>> SCAN OBJECT: INTELLECTUAL PROPERTY',
+      'All designs, algorithms, code structures',
+      'and system designs are fully owned by...'
+    ], true, animState >= 3);
+
+    drawContent(p2, 'PAGE 2 - LIMITS', [
+      'SECTION 4. REMEDIES & FINES',
+      'In the event of disclosure of records,',
+      'liquidated damages apply instantly.',
+      '>>> SCAN OBJECT: $500,000 LIABILITY',
+      'Subject to maximum enforcement penalties',
+      'allowed by federal and state courts.'
+    ], true, animState >= 4);
+
+    drawContent(p3, 'PAGE 3 - JURISDICTION', [
+      'SECTION 9. GOVERNING STATUTES',
+      'This agreement is governed by the',
+      'laws and provisions of Delaware, USA.',
+      '>>> SCAN OBJECT: DELAWARE LAW',
+      'Both parties consent to personal jurisdiction',
+      'and venue in state and federal courts.'
+    ], true, animState >= 5);
+
+  }, [animState, p1, p2, p3]);
+
+  const pageTextures = { p1: p1.texture, p2: p2.texture, p3: p3.texture };
 
   useFrame((state, delta) => {
     const elapsed = state.clock.getElapsedTime();

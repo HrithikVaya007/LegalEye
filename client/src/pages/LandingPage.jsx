@@ -11,7 +11,7 @@ const BentoCard = ({ icon: Icon, title, description, className = "", delay = 0 }
     whileInView={{ opacity: 1, y: 0 }}
     viewport={{ once: true, margin: "-50px" }}
     transition={{ duration: 0.5, delay }}
-    className={`glass-panel border-white/10 p-8 rounded-3xl flex flex-col hover:border-cyan-500/30 hover:bg-white/[0.08] transition-all duration-300 relative overflow-hidden group ${className}`}
+    className={`glass-panel border-white/10 p-6 sm:p-8 rounded-3xl flex flex-col hover:border-cyan-500/30 hover:bg-white/[0.08] transition-all duration-300 relative overflow-hidden group ${className}`}
   >
     <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/0 via-cyan-500/0 to-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
     <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center mb-6 border border-white/10 group-hover:border-cyan-500/40 group-hover:bg-cyan-500/10 transition-all duration-300">
@@ -55,7 +55,7 @@ const LandingPage = () => {
       <main className="relative z-10">
         
         {/* HERO SECTION */}
-        <section className="pt-32 pb-24 px-6 relative flex flex-col items-center text-center">
+        <section className="pt-24 pb-20 px-6 relative flex flex-col items-center text-center">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -67,25 +67,25 @@ const LandingPage = () => {
               Introducing LegalEye Enterprise
             </div>
             
-            <h1 className="text-5xl md:text-7xl font-bold tracking-tighter mb-8 leading-[1.05] text-white">
+            <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold tracking-tighter mb-8 leading-[1.05] text-white">
               Contract intelligence, <br />
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-zinc-100 via-cyan-100 to-zinc-400">
                 engineered for scale.
               </span>
             </h1>
             
-            <p className="text-lg text-zinc-400 mb-10 max-w-2xl mx-auto leading-relaxed">
+            <p className="text-base sm:text-lg text-zinc-400 mb-10 max-w-2xl mx-auto leading-relaxed">
               Instantly parse NDAs, surface critical liabilities, and query your entire legal repository using private, advanced AI semantic search.
             </p>
             
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link to="/register">
-                <Button size="lg" className="h-12 px-8 text-base font-semibold bg-white text-black hover:bg-zinc-200 border-0 rounded-xl transition-all hover:scale-105 active:scale-95">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto">
+              <Link to="/register" className="w-full sm:w-auto">
+                <Button size="lg" className="h-12 w-full sm:w-auto px-8 text-base font-semibold bg-white text-black hover:bg-zinc-200 border-0 rounded-xl transition-all hover:scale-105 active:scale-95">
                   Start Building Free
                 </Button>
               </Link>
-              <Link to="/login">
-                <Button size="lg" variant="outline" className="h-12 px-8 text-base font-medium border-white/10 text-white hover:bg-white/5 rounded-xl transition-all">
+              <Link to="/login" className="w-full sm:w-auto">
+                <Button size="lg" variant="outline" className="h-12 w-full sm:w-auto px-8 text-base font-medium border-white/10 text-white hover:bg-white/5 rounded-xl transition-all">
                   Read Documentation
                 </Button>
               </Link>
@@ -97,7 +97,7 @@ const LandingPage = () => {
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="mt-20 w-full max-w-6xl mx-auto"
+            className="mt-16 sm:mt-20 w-full max-w-6xl mx-auto"
           >
             <div className="relative rounded-3xl border border-white/[0.08] bg-[#0A0E17]/80 backdrop-blur-2xl shadow-2xl overflow-hidden">
               {/* Fake Window Header */}
@@ -109,16 +109,16 @@ const LandingPage = () => {
               </div>
               
               {/* Dashboard Content */}
-              <div className="grid grid-cols-1 md:grid-cols-3 h-[400px]">
+              <div className="grid grid-cols-1 md:grid-cols-3 md:h-[400px]">
                 {/* Left side: Document preview */}
-                <div className="col-span-2 border-r border-white/[0.04] p-8 flex flex-col relative overflow-hidden bg-white/[0.01]">
+                <div className="col-span-2 border-b md:border-b-0 md:border-r border-white/[0.04] p-6 sm:p-8 flex flex-col relative overflow-hidden bg-white/[0.01]">
                   <div className="w-32 h-4 bg-white/10 rounded mb-8"></div>
                   <div className="w-3/4 h-3 bg-white/5 rounded mb-4"></div>
                   <div className="w-5/6 h-3 bg-white/5 rounded mb-4"></div>
                   <div className="w-2/3 h-3 bg-white/5 rounded mb-12"></div>
                   
                   {/* Highlighted scanned clause */}
-                  <div className="p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/20 relative">
+                  <div className="p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/20 relative text-left">
                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-400 rounded-l-xl"></div>
                     <div className="flex items-center gap-2 mb-2">
                       <Zap className="w-4 h-4 text-cyan-400" />
@@ -130,7 +130,7 @@ const LandingPage = () => {
                 </div>
                 
                 {/* Right side: AI Sidebar */}
-                <div className="col-span-1 p-6 flex flex-col bg-[#080B12]/50">
+                <div className="col-span-1 p-6 flex flex-col bg-[#080B12]/50 min-h-[250px] md:min-h-0 text-left">
                   <div className="flex items-center gap-2 mb-6">
                     <div className="w-6 h-6 rounded bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center">
                       <Shield className="w-3 h-3 text-white" />

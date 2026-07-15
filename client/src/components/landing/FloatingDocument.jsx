@@ -54,13 +54,45 @@ export function FloatingDocument({ spherePosition = [2.2, 0.5, 0] }) {
     { type: 'highlight', text: '>>> RETENTION LIMIT: Complete data scrub within 48 hours.', y: 670, key: 'scrub' }
   ], []);
 
-  // Initialize Canvas
+  // Initialize and draw static Canvas exactly ONCE
   useMemo(() => {
     const canvas = document.createElement('canvas');
     canvas.width = CANVAS_W;
     canvas.height = CANVAS_H;
+    const ctx = canvas.getContext('2d');
+    
+    // Background gradient
+    const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
+    grad.addColorStop(0, '#0a1221');
+    grad.addColorStop(1, '#050a12');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+    // Glass panel border
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.2)';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(3, 3, CANVAS_W - 6, CANVAS_H - 6);
+
+    // Draw all text lines
+    textLines.forEach((line) => {
+      const isHighlighted = line.type === 'highlight';
+      if (isHighlighted) {
+        ctx.fillStyle = '#60A5FA'; // Calm blue for highlighted items
+        ctx.shadowColor = '#2563EB';
+        ctx.shadowBlur = 8;
+        ctx.font = 'bold 16px monospace';
+      } else {
+        ctx.fillStyle = '#475569';
+        ctx.shadowBlur = 0;
+        ctx.font = line.type === 'title' ? 'bold 18px sans-serif' : 
+                   line.type === 'subtitle' ? 'bold 15px sans-serif' : '13px sans-serif';
+      }
+      ctx.fillText(line.text, 35, line.y);
+      ctx.shadowBlur = 0; // Reset shadow
+    });
+
     canvasRef.current = canvas;
-  }, []);
+  }, [textLines]);
 
   // Spawn a particle
   const spawnParticle = (x, y, z) => {
@@ -105,89 +137,29 @@ export function FloatingDocument({ spherePosition = [2.2, 0.5, 0] }) {
 
     const scan3DY = 2.0 - scanVal * 4.0; // Map [0,1] to 3D coords [+2.0, -2.0]
 
-    // Position scan beam mesh
+    // Position scan beam mesh and spawn particles randomly when beam hits highlights
     if (scanBeamRef.current) {
       if (isScanning) {
         scanBeamRef.current.visible = true;
         scanBeamRef.current.position.y = scan3DY;
+        
+        // Randomly spawn particles if beam is over a highlight zone
+        textLines.forEach((line) => {
+          if (line.type === 'highlight') {
+            const line3DY = 2.0 - (line.y / CANVAS_H) * 4.0;
+            const dist = scan3DY - line3DY;
+            if (Math.abs(dist) < 0.2 && Math.random() < 0.3) {
+              const spawnX = (Math.random() - 0.5) * 2.4;
+              spawnParticle(spawnX, line3DY, 0.05);
+            }
+          }
+        });
       } else {
         scanBeamRef.current.visible = false;
       }
     }
 
-    // 3. Render dynamic texture
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      // Background gradient
-      const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
-      grad.addColorStop(0, '#0a1221');
-      grad.addColorStop(1, '#050a12');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-
-      // Glass panel border
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.2)';
-      ctx.lineWidth = 6;
-      ctx.strokeRect(3, 3, CANVAS_W - 6, CANVAS_H - 6);
-
-      // Draw all text lines
-      textLines.forEach((line) => {
-        // Calculate if this text line has been scanned
-        const line3DY = 2.0 - (line.y / CANVAS_H) * 4.0;
-        const dist = scan3DY - line3DY;
-        
-        // Glow if scanned or scanning passes over it
-        const isHighlighted = line.type === 'highlight';
-        const isPassed = isScanning && dist < 0; // scan has passed this Y position
-        const isNear = isScanning && Math.abs(dist) < 0.2;
-
-        if (isHighlighted) {
-          if (isNear) {
-            // Actively scanning this highlighted clause
-            ctx.fillStyle = '#38BDF8'; // Glowing cyan
-            ctx.shadowColor = '#38BDF8';
-            ctx.shadowBlur = 15;
-            
-            // Spawn particles along this horizontal line
-            if (Math.random() < 0.3) {
-              const spawnX = (Math.random() - 0.5) * 2.4;
-              spawnParticle(spawnX, line3DY, 0.05);
-            }
-          } else if (isPassed) {
-            // Already scanned highlight
-            ctx.fillStyle = '#60A5FA'; // Calm blue
-            ctx.shadowColor = '#2563EB';
-            ctx.shadowBlur = 8;
-          } else {
-            // Not yet scanned highlight
-            ctx.fillStyle = '#1E3A8A'; // Dim navy
-            ctx.shadowBlur = 0;
-          }
-          ctx.font = 'bold 16px monospace';
-        } else {
-          // Standard text
-          if (isPassed) {
-            ctx.fillStyle = '#F1F5F9';
-          } else {
-            ctx.fillStyle = '#475569';
-          }
-          ctx.shadowBlur = 0;
-          ctx.font = line.type === 'title' ? 'bold 18px sans-serif' : 
-                     line.type === 'subtitle' ? 'bold 15px sans-serif' : '13px sans-serif';
-        }
-
-        ctx.fillText(line.text, 35, line.y);
-        ctx.shadowBlur = 0; // Reset shadow
-      });
-
-      // Notify Three.js to re-upload texture
-      if (textureRef.current) {
-        textureRef.current.needsUpdate = true;
-      }
-    }
-
-    // 4. Update Particle positions
+    // 3. Update Particle positions (Canvas texture upload removed for performance)
     const posAttr = particlesRef.current?.geometry.attributes.position;
     const sizeAttr = particlesRef.current?.geometry.attributes.aSize;
 

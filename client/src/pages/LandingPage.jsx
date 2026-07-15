@@ -208,8 +208,8 @@ const LandingPage = () => {
               />
               <BentoCard 
                 icon={Lock}
-                title="SOC2 Ready Security"
-                description="Data is isolated per tenant. We never train public models on your proprietary agreements."
+                title="Private & Secure"
+                description="Your data remains strictly isolated. We never train public AI models on your proprietary legal agreements."
                 className="md:col-span-1"
                 delay={0.1}
               />
@@ -239,7 +239,7 @@ const LandingPage = () => {
             
             <Link to="/register">
               <Button size="lg" className="h-12 px-8 text-base font-bold bg-white text-black hover:bg-zinc-200 border-0 rounded-xl transition-all shadow-[0_0_40px_rgba(255,255,255,0.1)]">
-                Create Free Account
+                Sign In
               </Button>
             </Link>
           </div>

@@ -23,17 +23,17 @@ const SearchResult = ({ title, excerpt, score, document, page }) => (
     animate={{ opacity: 1, y: 0 }}
     className="glass-panel p-5 rounded-2xl group hover:border-primary/30 transition-all duration-300 mb-4"
   >
-    <div className="flex justify-between items-start mb-3">
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
+    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-3">
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20 shrink-0">
           <FileText className="w-4 h-4 text-primary" />
         </div>
-        <div>
-          <h3 className="font-semibold text-white group-hover:text-primary transition-colors">{title}</h3>
-          <p className="text-[10px] text-zinc-500">{document} • Page {page}</p>
+        <div className="min-w-0">
+          <h3 className="font-semibold text-white group-hover:text-primary transition-colors truncate" title={title}>{title}</h3>
+          <p className="text-[10px] text-zinc-500 truncate" title={`${document} • Page ${page}`}>{document} • Page {page}</p>
         </div>
       </div>
-      <div className="flex flex-col items-end">
+      <div className="flex flex-col items-start sm:items-end shrink-0">
         <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Relevance Score</span>
         <div className="flex items-center gap-2">
           <div className="w-24 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
@@ -117,17 +117,19 @@ const SearchPage = () => {
 
       <form onSubmit={handleSearch} className="relative group">
         <div className="absolute inset-0 bg-primary/10 rounded-2xl blur-2xl group-focus-within:bg-primary/20 transition-all opacity-50" />
-        <div className="relative glass-panel rounded-2xl p-2 flex items-center gap-2 border-white/10 shadow-2xl">
-          <div className="pl-4">
-            <SearchIcon className="text-zinc-500" size={24} />
+        <div className="relative glass-panel rounded-2xl p-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 border-white/10 shadow-2xl">
+          <div className="flex items-center flex-1 gap-2 min-w-0">
+            <div className="pl-2 sm:pl-4 shrink-0">
+              <SearchIcon className="text-zinc-500" size={20} />
+            </div>
+            <Input 
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search clauses, definitions..." 
+              className="flex-1 bg-transparent border-0 text-base sm:text-lg h-12 sm:h-14 focus-visible:ring-0 w-full"
+            />
           </div>
-          <Input 
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search for clauses, definitions, or legal concepts..." 
-            className="flex-1 bg-transparent border-0 text-lg h-14 focus-visible:ring-0"
-          />
-          <Button type="submit" size="lg" className="rounded-xl px-8" disabled={isSearching}>
+          <Button type="submit" size="lg" className="rounded-xl px-6 sm:px-8 h-10 sm:h-12 w-full sm:w-auto" disabled={isSearching}>
             {isSearching ? <span className="animate-spin">◌</span> : 'Search'}
           </Button>
         </div>

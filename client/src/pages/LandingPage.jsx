@@ -32,19 +32,19 @@ const LandingPage = () => {
 
       {/* Navigation */}
       <nav className="border-b border-white/[0.04] bg-[#080B12]/80 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-cyan-500/20">
               <Shield className="w-4 h-4 text-white" />
             </div>
             <span className="text-xl font-bold tracking-tight text-white">LegalEye</span>
           </div>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4 md:gap-6">
             <Link to="/login" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
               Sign In
             </Link>
             <Link to="/register">
-              <Button className="h-9 px-4 text-sm font-medium bg-white text-black hover:bg-zinc-200 border-0 shadow-none transition-colors rounded-lg">
+              <Button className="h-9 px-3 md:px-4 text-sm font-medium bg-white text-black hover:bg-zinc-200 border-0 shadow-none transition-colors rounded-lg">
                 Get Started
               </Button>
             </Link>

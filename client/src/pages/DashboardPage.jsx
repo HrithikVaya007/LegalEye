@@ -109,12 +109,12 @@ const DashboardPage = () => {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-end">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-          <p className="text-zinc-400 mt-1">Welcome back, {user?.name || 'User'}. Here's what's happening with your legal workspace.</p>
+          <p className="text-zinc-400 mt-1 text-sm md:text-base">Welcome back, {user?.name || 'User'}. Here's what's happening with your legal workspace.</p>
         </div>
-        <Button onClick={() => navigate('/dashboard/upload')}>
+        <Button onClick={() => navigate('/dashboard/upload')} className="w-full sm:w-auto shrink-0">
           <Plus size={18} className="mr-2" />
           Add Documents
         </Button>
@@ -125,7 +125,7 @@ const DashboardPage = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="glass-panel">
+        <Card className="glass-panel min-w-0">
           <CardHeader>
             <CardTitle>AI Query Volume</CardTitle>
           </CardHeader>
@@ -169,7 +169,7 @@ const DashboardPage = () => {
           </CardContent>
         </Card>
 
-        <Card className="glass-panel">
+        <Card className="glass-panel min-w-0">
           <CardHeader>
             <CardTitle>Document Indexing</CardTitle>
           </CardHeader>
@@ -214,13 +214,13 @@ const DashboardPage = () => {
           ) : (
             <div className="space-y-6">
               {recentActivity.map((activity, i) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-300">
+                <div key={i} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0 gap-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-300 shrink-0">
                       {(activity.user || "U").split(' ').map(n => n[0]).join('')}
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-zinc-300">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-zinc-300 break-words">
                         <span className="text-white">{activity.user}</span>
                         <span className="text-zinc-500 mx-1">{activity.action}</span>
                         <span className="text-primary font-medium">{activity.target}</span>
@@ -228,7 +228,7 @@ const DashboardPage = () => {
                       <p className="text-[10px] text-zinc-500 mt-0.5">{activity.time}</p>
                     </div>
                   </div>
-                  <ArrowUpRight size={14} className="text-zinc-500" />
+                  <ArrowUpRight size={14} className="text-zinc-500 shrink-0" />
                 </div>
               ))}
             </div>

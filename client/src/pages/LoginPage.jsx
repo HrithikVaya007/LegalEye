@@ -50,7 +50,7 @@ const LoginPage = () => {
         </div>
 
         {/* Card */}
-        <div className="glass-panel border border-white/10 rounded-2xl p-8">
+        <div className="glass-panel border border-white/10 rounded-2xl p-5 sm:p-8">
           <h2 className="text-2xl font-semibold text-center mb-2">Welcome</h2>
           <p className="text-zinc-400 text-center text-sm mb-8">
             Sign in to access your legal workspace
@@ -84,7 +84,7 @@ const LoginPage = () => {
                 shape="rectangular"
                 size="large"
                 text="signin_with"
-                width="320"
+                width="280"
               />
             )}
           </div>

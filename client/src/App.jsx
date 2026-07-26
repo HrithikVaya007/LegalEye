@@ -12,6 +12,7 @@ import SearchPage from './pages/SearchPage';
 import SettingsPage from './pages/SettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
 import LandingPage from './pages/LandingPage';
+import DocsPage from './pages/DocsPage';
 
 import { GOOGLE_CLIENT_ID } from './config';
 
@@ -23,6 +24,7 @@ function App() {
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<LandingPage />} />
+            <Route path="/docs" element={<DocsPage />} />
 
             {/* Auth */}
             <Route path="/login" element={<LoginPage />} />

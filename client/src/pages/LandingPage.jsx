@@ -84,7 +84,7 @@ const LandingPage = () => {
                   Start Building Free
                 </Button>
               </Link>
-              <Link to="/login" className="w-full sm:w-auto">
+              <Link to="/docs" className="w-full sm:w-auto">
                 <Button size="lg" variant="outline" className="h-12 w-full sm:w-auto px-8 text-base font-medium border-white/10 text-white hover:bg-white/5 rounded-xl transition-all">
                   Read Documentation
                 </Button>
@@ -254,7 +254,7 @@ const LandingPage = () => {
             <span className="text-zinc-500 font-semibold text-sm tracking-tight">LegalEye Inc. © 2026</span>
           </div>
           <div className="flex gap-6 text-sm text-zinc-500 font-medium">
-            <a href="#" className="hover:text-zinc-300 transition-colors">Documentation</a>
+            <Link to="/docs" className="hover:text-zinc-300 transition-colors">Documentation</Link>
             <a href="#" className="hover:text-zinc-300 transition-colors">Privacy</a>
             <a href="#" className="hover:text-zinc-300 transition-colors">Terms</a>
           </div>

@@ -217,9 +217,9 @@ const UploadPage = () => {
                             </span>
                           )}
                           {f.status === 'error' && (
-                            <span className="text-[10px] text-red-500 flex items-center gap-1">
+                            <span className="text-[10px] text-red-500 flex items-center gap-1" title={f.error || 'Upload failed'}>
                               <AlertCircle size={10} />
-                              Failed
+                              {f.error ? (f.error.length > 30 ? f.error.substring(0, 30) + '...' : f.error) : 'Failed'}
                             </span>
                           )}
                           {f.status === 'completed' && (

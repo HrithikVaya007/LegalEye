@@ -23,8 +23,8 @@ groq_client = Groq(api_key=settings.GROQ_API_KEY)
 # we call the free HuggingFace Inference API remotely.
 # ---------------------------------------------------------------------------
 _HF_API_URLS = [
-    "https://api-inference.huggingface.co/models/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-    "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    "https://router.huggingface.co/hf-inference/models/BAAI/bge-small-en-v1.5",
+    "https://api-inference.huggingface.co/models/BAAI/bge-small-en-v1.5"
 ]
 
 # Maximum retries for HF API (model may need to warm up on first call)

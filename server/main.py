@@ -32,6 +32,7 @@ app.add_middleware(
 # Include the API router (all sub-routers are mounted inside api_router)
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
+# Main FastAPI application entrypoint for LegalEye AI backend
 @app.get("/")
 async def root():
     return {"message": "Welcome to LegalEye AI API"}

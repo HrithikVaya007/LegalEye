@@ -66,27 +66,50 @@ const UploadPage = () => {
     formData.append('file', fileObj.file);
 
     try {
-      const response = await fetch(`${API_URL}/documents/upload`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${user?.token || ''}`
-        },
-        body: formData,
+      // Use XMLHttpRequest for real upload progress tracking
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            // Cap visual progress at 90% during upload — the remaining 10%
+            // represents server-side processing (text extraction, embeddings)
+            const percent = Math.min(Math.round((e.loaded / e.total) * 90), 90);
+            setFiles(prev => prev.map(f =>
+              f.id === fileObj.id ? { ...f, progress: percent } : f
+            ));
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(JSON.parse(xhr.responseText));
+          } else {
+            let detail = 'Upload failed';
+            try {
+              const errData = JSON.parse(xhr.responseText);
+              detail = errData.detail || detail;
+            } catch (_) {}
+            reject(new Error(detail));
+          }
+        });
+
+        xhr.addEventListener('error', () => reject(new Error('Network error — check your connection')));
+        xhr.addEventListener('timeout', () => reject(new Error('Upload timed out — file may be too large')));
+
+        xhr.open('POST', `${API_URL}/documents/upload`);
+        xhr.setRequestHeader('Authorization', `Bearer ${user?.token || ''}`);
+        xhr.timeout = 120000; // 2 minute timeout
+        xhr.send(formData);
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Upload failed');
-      }
-
-      const data = await response.json();
-      
-      setFiles(prev => prev.map(f => 
+      // Server-side processing complete
+      setFiles(prev => prev.map(f =>
         f.id === fileObj.id ? { ...f, progress: 100, status: 'completed' } : f
       ));
     } catch (error) {
       console.error('Upload error:', error);
-      setFiles(prev => prev.map(f => 
+      setFiles(prev => prev.map(f =>
         f.id === fileObj.id ? { ...f, status: 'error', error: error.message } : f
       ));
     }

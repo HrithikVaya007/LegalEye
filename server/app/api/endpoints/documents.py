@@ -1,6 +1,8 @@
 import asyncio
+import logging
 import os
 import shutil
+import tempfile
 from typing import List
 from datetime import datetime
 from bson import ObjectId
@@ -25,6 +27,8 @@ from app.services.vector_store import (
     delete_document_vectors
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 
@@ -40,34 +44,53 @@ async def upload_document(
             detail="Only PDF files are allowed"
         )
 
-    upload_dir = "uploads"
+    # Use the OS temp directory (/tmp on Linux/Vercel) instead of a local
+    # 'uploads/' folder. Vercel's filesystem is read-only except for /tmp.
+    upload_dir = os.path.join(tempfile.gettempdir(), "uploads")
     os.makedirs(upload_dir, exist_ok=True)
 
     file_path = os.path.join(upload_dir, file.filename)
 
-    # Save uploaded file to disk
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    # Save uploaded file to the temp directory
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except OSError as e:
+        logger.error(f"Failed to write uploaded file to disk: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to save uploaded file: {e}"
+        )
 
     file_size = os.path.getsize(file_path)
 
-    # Run CPU-bound text extraction off the async event loop
-    chunks = await asyncio.to_thread(extract_text, file_path)
+    try:
+        # Run CPU-bound text extraction off the async event loop
+        chunks = await asyncio.to_thread(extract_text, file_path)
 
-    if chunks:
-        # Batch-encode all chunks in one model.encode() call — much faster
-        # than encoding one chunk at a time in a loop
-        texts = [chunk["text"] for chunk in chunks]
-        embeddings = await asyncio.to_thread(
-            generate_embeddings_batch, texts, "passage"
-        )
-        for chunk, embedding in zip(chunks, embeddings):
-            chunk["embedding"] = embedding
-            chunk["document_name"] = file.filename
+        if chunks:
+            # Batch-encode all chunks in one model.encode() call — much faster
+            # than encoding one chunk at a time in a loop
+            texts = [chunk["text"] for chunk in chunks]
+            embeddings = await asyncio.to_thread(
+                generate_embeddings_batch, texts, "passage"
+            )
+            for chunk, embedding in zip(chunks, embeddings):
+                chunk["embedding"] = embedding
+                chunk["document_name"] = file.filename
 
-        # Run blocking Qdrant upsert off the event loop
-        await asyncio.to_thread(
-            store_chunks, chunks, str(current_user["_id"])
+            # Run blocking Qdrant upsert off the event loop
+            await asyncio.to_thread(
+                store_chunks, chunks, str(current_user["_id"])
+            )
+    except Exception as e:
+        logger.error(f"Document processing pipeline failed: {e}")
+        # Clean up the temp file on failure
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Document processing failed: {str(e)}"
         )
 
     document = {

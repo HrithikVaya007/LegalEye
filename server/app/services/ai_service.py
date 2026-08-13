@@ -22,11 +22,10 @@ groq_client = Groq(api_key=settings.GROQ_API_KEY)
 # Instead of running locally with fastembed (which requires ~500MB+ RAM),
 # we call the free HuggingFace Inference API remotely.
 # ---------------------------------------------------------------------------
-_HF_API_URL = (
-    "https://api-inference.huggingface.co/pipeline/feature-extraction/"
-    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-)
-_HF_HEADERS = {"Authorization": f"Bearer {settings.HUGGINGFACE_API_TOKEN}"}
+_HF_API_URLS = [
+    "https://api-inference.huggingface.co/models/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+]
 
 # Maximum retries for HF API (model may need to warm up on first call)
 _MAX_RETRIES = 3
@@ -46,34 +45,54 @@ def _mean_pool(token_embeddings: list) -> List[float]:
     return [x / num_tokens for x in pooled]
 
 
+def _get_hf_headers():
+    token = getattr(settings, "HUGGINGFACE_API_TOKEN", "") or ""
+    headers = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
 def _call_hf_api(inputs):
     """
     Call the HuggingFace Inference API with automatic retry logic.
     The model may be cold-starting on the first request, returning a
     'loading' status — we retry after a short delay in that case.
     """
-    for attempt in range(_MAX_RETRIES):
-        response = requests.post(
-            _HF_API_URL,
-            headers=_HF_HEADERS,
-            json={"inputs": inputs, "options": {"wait_for_model": True}},
-            timeout=120
-        )
+    headers = _get_hf_headers()
+    last_exception = None
 
-        if response.status_code == 503:
-            # Model is loading — wait and retry
-            wait_time = response.json().get("estimated_time", _RETRY_DELAY)
-            logger.warning(
-                f"HF model is loading (attempt {attempt + 1}/{_MAX_RETRIES}). "
-                f"Retrying in {wait_time:.0f}s..."
-            )
-            time.sleep(min(wait_time, 30))
-            continue
+    for api_url in _HF_API_URLS:
+        for attempt in range(_MAX_RETRIES):
+            try:
+                response = requests.post(
+                    api_url,
+                    headers=headers,
+                    json={"inputs": inputs, "options": {"wait_for_model": True}},
+                    timeout=60
+                )
 
-        response.raise_for_status()
-        return response.json()
+                if response.status_code == 503:
+                    # Model is loading — wait and retry
+                    wait_time = response.json().get("estimated_time", _RETRY_DELAY) if response.headers.get("content-type", "").startswith("application/json") else _RETRY_DELAY
+                    logger.warning(
+                        f"HF model is loading (attempt {attempt + 1}/{_MAX_RETRIES}). "
+                        f"Retrying in {wait_time:.0f}s..."
+                    )
+                    time.sleep(min(wait_time, 15))
+                    continue
 
-    raise RuntimeError("HuggingFace Inference API failed after max retries.")
+                if response.status_code != 200:
+                    logger.error(f"HF API returned status {response.status_code} for {api_url}: {response.text}")
+
+                response.raise_for_status()
+                return response.json()
+            except Exception as e:
+                last_exception = e
+                logger.warning(f"Attempt {attempt + 1} for {api_url} failed: {e}")
+                time.sleep(1)
+
+    raise RuntimeError(f"HuggingFace Inference API failed: {last_exception}")
 
 
 def _parse_embedding(result) -> List[float]:

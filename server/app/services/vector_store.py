@@ -15,40 +15,45 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# Initialize Qdrant Client with remote settings first.
-# If the connection fails or if no remote URL is configured,
-# fall back to an in-memory client for local development/testing.
-_qdrant_url = settings.QDRANT_URL
-_qdrant_api_key = settings.QDRANT_API_KEY if hasattr(settings, "QDRANT_API_KEY") else None
+_client_instance = None
 
-try:
-    if _qdrant_url and _qdrant_url != ":memory:":
-        client = QdrantClient(
-            url=_qdrant_url,
-            api_key=_qdrant_api_key if _qdrant_api_key else None,
-            timeout=60.0
+def get_client() -> QdrantClient:
+    global _client_instance
+    if _client_instance is not None:
+        return _client_instance
+
+    _qdrant_url = getattr(settings, "QDRANT_URL", None) or "http://localhost:6333"
+    _qdrant_api_key = getattr(settings, "QDRANT_API_KEY", None) or None
+
+    try:
+        if _qdrant_url and _qdrant_url != ":memory:":
+            _client_instance = QdrantClient(
+                url=_qdrant_url,
+                api_key=_qdrant_api_key if _qdrant_api_key else None,
+                timeout=60.0
+            )
+            logger.info(f"Connected to Qdrant server at {_qdrant_url}")
+        else:
+            logger.info("No remote Qdrant URL configured. Using in-memory Qdrant client.")
+            _client_instance = QdrantClient(location=":memory:")
+    except Exception as e:
+        logger.warning(
+            f"Could not connect to Qdrant server at {_qdrant_url}: {e}. "
+            "Falling back to in-memory Qdrant client."
         )
-        # Test connection by listing collections
-        client.get_collections()
-        logger.info(f"Connected to Qdrant server at {_qdrant_url}")
-    else:
-        logger.info("No remote Qdrant URL configured. Using in-memory Qdrant client.")
-        client = QdrantClient(location=":memory:")
-except Exception as e:
-    logger.warning(
-        f"Could not connect to Qdrant server at {_qdrant_url}: {e}. "
-        "Falling back to in-memory Qdrant client."
-    )
-    client = QdrantClient(location=":memory:")
+        _client_instance = QdrantClient(location=":memory:")
+
+    return _client_instance
 
 
 def create_collection(vector_size=384):
     try:
-        collections = client.get_collections().collections
+        q_client = get_client()
+        collections = q_client.get_collections().collections
         existing = [collection.name for collection in collections]
 
         if "legaleye" not in existing:
-            client.create_collection(
+            q_client.create_collection(
                 collection_name="legaleye",
                 vectors_config=VectorParams(
                     size=vector_size,
@@ -58,7 +63,7 @@ def create_collection(vector_size=384):
         
         # Always ensure user_id index exists to satisfy Qdrant Cloud filtering requirements
         try:
-            client.create_payload_index(
+            q_client.create_payload_index(
                 collection_name="legaleye",
                 field_name="user_id",
                 field_schema=PayloadSchemaType.KEYWORD
@@ -75,6 +80,7 @@ def store_chunks(chunks, user_id: str):
     if not chunks:
         return
     try:
+        q_client = get_client()
         # Dynamically determine vector size from the first chunk
         first_embedding = chunks[0].get("embedding")
         vector_size = len(first_embedding) if first_embedding else 384
@@ -113,7 +119,7 @@ def store_chunks(chunks, user_id: str):
                 )
             )
 
-        client.upsert(
+        q_client.upsert(
             collection_name="legaleye",
             points=points
         )
@@ -128,6 +134,7 @@ def semantic_search(
     limit=5
 ):
     try:
+        q_client = get_client()
         vector_size = len(query_embedding) if query_embedding else 384
         create_collection(vector_size=vector_size)
         
@@ -140,7 +147,7 @@ def semantic_search(
             ]
         )
         
-        response = client.query_points(
+        response = q_client.query_points(
             collection_name="legaleye",
             query=query_embedding,
             query_filter=user_filter,
@@ -154,7 +161,8 @@ def semantic_search(
 
 def delete_document_vectors(document_name: str, user_id: str):
     try:
-        client.delete(
+        q_client = get_client()
+        q_client.delete(
             collection_name="legaleye",
             points_selector=Filter(
                 must=[

@@ -29,11 +29,19 @@ try:
     )
     logger.info("Initializing fastembed model using /workspace/.fastembed_cache")
 except Exception as e:
-    logger.warning(f"Could not initialize with /workspace/.fastembed_cache: {e}. Falling back to default cache.")
-    # Fallback for local development if /workspace is not writable
-    embedding_model = TextEmbedding(
-        model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-    )
+    logger.warning(f"Could not initialize with /workspace/.fastembed_cache: {e}. Trying /tmp/fastembed_cache for serverless/read-only systems.")
+    try:
+        embedding_model = TextEmbedding(
+            model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+            cache_dir="/tmp/fastembed_cache"
+        )
+        logger.info("Initializing fastembed model using /tmp/fastembed_cache")
+    except Exception as e2:
+        logger.warning(f"Could not initialize with /tmp/fastembed_cache: {e2}. Falling back to default cache.")
+        # Fallback for local development
+        embedding_model = TextEmbedding(
+            model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+        )
 
 # ---------------------------------------------------------------------------
 # LLM configuration

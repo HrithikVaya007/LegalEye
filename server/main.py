@@ -20,6 +20,18 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Middleware to fix Vercel rewrite paths so FastAPI routes requests correctly
+@app.middleware("http")
+async def fix_vercel_path(request: Request, call_next):
+    forwarded_uri = request.headers.get("x-forwarded-uri") or request.headers.get("x-matched-path")
+    if forwarded_uri:
+        clean_path = forwarded_uri.split("?")[0]
+        request.scope["path"] = clean_path if clean_path else "/"
+    elif request.url.path in ["/api/index", "/api/index.py", "/main.py"]:
+        request.scope["path"] = "/"
+
+    return await call_next(request)
+
 # Set all CORS enabled origins
 app.add_middleware(
     CORSMiddleware,
@@ -34,14 +46,8 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 # Main FastAPI application entrypoint for LegalEye AI backend
 @app.get("/")
-@app.get("/main.py")
-@app.get("/api/index")
-@app.get("/api/index.py")
 async def root():
     return {"message": "Welcome to LegalEye AI API"}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=settings.PORT, reload=True)
-
-
-

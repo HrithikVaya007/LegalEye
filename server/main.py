@@ -20,27 +20,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Middleware to rewrite Vercel serverless prefix paths (/api/index, /main.py) to actual API routes
-@app.middleware("http")
-async def fix_vercel_path(request: Request, call_next):
-    forwarded_uri = request.headers.get("x-forwarded-uri") or request.headers.get("x-matched-path")
-    
-    if forwarded_uri and forwarded_uri not in ["/api/index", "/api/index.py", "/main.py"]:
-        clean_path = forwarded_uri.split("?")[0]
-        request.scope["path"] = clean_path if clean_path else "/"
-    else:
-        path = request.url.path
-        if path in ["/api/index", "/api/index.py", "/main.py"]:
-            request.scope["path"] = "/"
-        elif path.startswith("/api/index.py/"):
-            new_path = path[len("/api/index.py"):]
-            request.scope["path"] = new_path if new_path else "/"
-        elif path.startswith("/api/index/"):
-            new_path = path[len("/api/index"):]
-            request.scope["path"] = new_path if new_path else "/"
-    
-    return await call_next(request)
-
 # Set all CORS enabled origins
 app.add_middleware(
     CORSMiddleware,

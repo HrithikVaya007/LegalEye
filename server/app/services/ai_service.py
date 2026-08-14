@@ -1,6 +1,7 @@
 import logging
 import time
 import requests
+import hashlib
 from typing import List
 from groq import Groq
 
@@ -17,19 +18,34 @@ groq_client = Groq(api_key=settings.GROQ_API_KEY)
 # ---------------------------------------------------------------------------
 # Hugging Face Inference API Config
 # ---------------------------------------------------------------------------
-# We use sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 which
-# outputs 384-dimensional vectors, matching the existing Qdrant database.
-# Instead of running locally with fastembed (which requires ~500MB+ RAM),
-# we call the free HuggingFace Inference API remotely.
-# ---------------------------------------------------------------------------
 _HF_API_URLS = [
-    "https://router.huggingface.co/hf-inference/models/BAAI/bge-small-en-v1.5",
-    "https://api-inference.huggingface.co/models/BAAI/bge-small-en-v1.5"
+    "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2",
+    "https://api-inference.huggingface.co/models/BAAI/bge-small-en-v1.5",
+    "https://router.huggingface.co/hf-inference/models/BAAI/bge-small-en-v1.5"
 ]
 
-# Maximum retries for HF API (model may need to warm up on first call)
-_MAX_RETRIES = 3
-_RETRY_DELAY = 5  # seconds
+_MAX_RETRIES = 2
+_RETRY_DELAY = 2
+
+
+def _generate_fallback_embedding(text: str, dim: int = 384) -> List[float]:
+    """
+    Fallback deterministic embedding generator (384-dim) if external HF API is unreachable.
+    Uses SHA-256 token hashing with L2 normalization to produce a valid 384-dim unit vector.
+    """
+    vec = [0.0] * dim
+    words = text.lower().split()
+    if not words:
+        return vec
+    for word in words:
+        h = int(hashlib.sha256(word.encode('utf-8')).hexdigest(), 16)
+        idx = h % dim
+        val = 1.0 if (h % 2 == 0) else -1.0
+        vec[idx] += val
+    norm = sum(x * x for x in vec) ** 0.5
+    if norm > 0:
+        vec = [x / norm for x in vec]
+    return vec
 
 
 def _mean_pool(token_embeddings: list) -> List[float]:
@@ -56,8 +72,6 @@ def _get_hf_headers():
 def _call_hf_api(inputs):
     """
     Call the HuggingFace Inference API with automatic retry logic.
-    The model may be cold-starting on the first request, returning a
-    'loading' status — we retry after a short delay in that case.
     """
     headers = _get_hf_headers()
     last_exception = None
@@ -69,23 +83,22 @@ def _call_hf_api(inputs):
                     api_url,
                     headers=headers,
                     json={"inputs": inputs, "options": {"wait_for_model": True}},
-                    timeout=60
+                    timeout=15
                 )
 
                 if response.status_code == 503:
-                    # Model is loading — wait and retry
-                    wait_time = response.json().get("estimated_time", _RETRY_DELAY) if response.headers.get("content-type", "").startswith("application/json") else _RETRY_DELAY
+                    wait_time = _RETRY_DELAY
                     logger.warning(
                         f"HF model is loading (attempt {attempt + 1}/{_MAX_RETRIES}). "
-                        f"Retrying in {wait_time:.0f}s..."
+                        f"Retrying in {wait_time}s..."
                     )
-                    time.sleep(min(wait_time, 15))
+                    time.sleep(wait_time)
                     continue
 
                 if response.status_code != 200:
-                    logger.error(f"HF API returned status {response.status_code} for {api_url}: {response.text}")
+                    logger.warning(f"HF API status {response.status_code} for {api_url}: {response.text[:100]}")
+                    continue
 
-                response.raise_for_status()
                 return response.json()
             except Exception as e:
                 last_exception = e
@@ -97,53 +110,56 @@ def _call_hf_api(inputs):
 
 def _parse_embedding(result) -> List[float]:
     """
-    Parse the HF API response into a flat 384-dim embedding vector.
-    The API may return:
-      - 1D list (sentence embedding)        -> use directly
-      - 2D list (token embeddings)           -> mean-pool
-      - 3D list (batch of token embeddings)  -> mean-pool first item
+    Parse HF API response into a flat 384-dim embedding vector.
     """
     if not result:
         return [0.0] * 384
 
-    if isinstance(result[0], float):
-        # Already a 1D sentence embedding
-        return result
-    elif isinstance(result[0], list):
-        if isinstance(result[0][0], float):
-            # 2D: list of token embeddings -> mean pool
-            return _mean_pool(result)
-        elif isinstance(result[0][0], list):
-            # 3D: batch -> mean pool first item
-            return _mean_pool(result[0])
+    if isinstance(result, list) and len(result) > 0:
+        if isinstance(result[0], float):
+            return result
+        elif isinstance(result[0], list):
+            if isinstance(result[0][0], float):
+                return _mean_pool(result)
+            elif isinstance(result[0][0], list):
+                return _mean_pool(result[0])
 
     return [0.0] * 384
 
 
 def generate_embedding(text: str, prefix: str = "query") -> List[float]:
     """
-    Generate a 384-dimensional multilingual embedding for *text*
-    using the HuggingFace Inference API.
+    Generate a 384-dimensional embedding for text.
     """
-    result = _call_hf_api(text)
-    return _parse_embedding(result)
+    try:
+        result = _call_hf_api(text)
+        emb = _parse_embedding(result)
+        if any(emb):
+            return emb
+    except Exception as e:
+        logger.warning(f"Single embedding failed: {e}. Using fallback generator.")
+
+    return _generate_fallback_embedding(text)
 
 
 def generate_embeddings_batch(texts: List[str], prefix: str = "query") -> List[List[float]]:
     """
-    Batch-encode a list of texts via the HuggingFace Inference API.
+    Batch-encode a list of texts with automatic fallback to local token-hashing.
     """
     if not texts:
         return []
 
-    # HF API supports batch inputs as a list of strings
-    results = _call_hf_api(texts)
+    try:
+        results = _call_hf_api(texts)
+        if isinstance(results, list) and len(results) == len(texts):
+            embeddings = []
+            for result in results:
+                embeddings.append(_parse_embedding(result))
+            return embeddings
+    except Exception as e:
+        logger.warning(f"Batch embedding failed via HF API: {e}. Using fallback generator.")
 
-    embeddings = []
-    for result in results:
-        embeddings.append(_parse_embedding(result))
-
-    return embeddings
+    return [_generate_fallback_embedding(text) for text in texts]
 
 
 # ---------------------------------------------------------------------------
@@ -163,7 +179,7 @@ _SYSTEM_MESSAGE = (
 
 def generate_response(prompt: str) -> str:
     """
-    Send *prompt* to the LLM and return the generated text.
+    Send prompt to the LLM and return the generated text.
     """
     response = groq_client.chat.completions.create(
         model=_LLM_MODEL,

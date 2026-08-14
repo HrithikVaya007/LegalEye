@@ -23,12 +23,16 @@ app = FastAPI(
 # Middleware to fix Vercel rewrite paths so FastAPI routes requests correctly
 @app.middleware("http")
 async def fix_vercel_path(request: Request, call_next):
-    forwarded_uri = request.headers.get("x-forwarded-uri") or request.headers.get("x-matched-path")
-    if forwarded_uri:
-        clean_path = forwarded_uri.split("?")[0]
-        request.scope["path"] = clean_path if clean_path else "/"
-    elif request.url.path in ["/api/index", "/api/index.py", "/main.py"]:
-        request.scope["path"] = "/"
+    path_param = request.query_params.get("path")
+    if path_param:
+        request.scope["path"] = path_param
+    else:
+        forwarded_uri = request.headers.get("x-forwarded-uri") or request.headers.get("x-matched-path")
+        if forwarded_uri:
+            clean_path = forwarded_uri.split("?")[0]
+            request.scope["path"] = clean_path if clean_path else "/"
+        elif request.url.path in ["/api/index", "/api/index.py", "/main.py"]:
+            request.scope["path"] = "/"
 
     return await call_next(request)
 
